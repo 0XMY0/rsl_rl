@@ -108,6 +108,15 @@ class OnPolicyRunner:
                     obs, privileged_obs, rewards, dones, infos = self.env.step(actions)
                     critic_obs = privileged_obs if privileged_obs is not None else obs
                     obs, critic_obs, rewards, dones = obs.to(self.device), critic_obs.to(self.device), rewards.to(self.device), dones.to(self.device)
+
+                    if 1: # chz: add the mirror loss term
+                        mirrored_obs = self.env.mirror_obs(obs)
+                        actions_mirrored_obs = self.alg.actor_critic.act(mirrored_obs).detach()
+                        mirrored_actions = self.env.mirror_actions(actions)
+                        symmetry_loss = torch.sum(torch.square(actions_mirrored_obs - mirrored_actions), dim=1).cpu().numpy().tolist()
+                        # rewards -= 0.1 * statistics.mean(symmetry_loss)
+                        # self.writer.add_scalar('Loss/symmetry loss', statistics.mean(symmetry_loss), it)
+
                     self.alg.process_env_step(rewards, dones, infos)
                     
                     if self.log_dir is not None:
@@ -187,7 +196,8 @@ class OnPolicyRunner:
                           f"""{'Surrogate loss:':>{pad}} {locs['mean_surrogate_loss']:.4f}\n"""
                           f"""{'Mean action noise std:':>{pad}} {mean_std.item():.2f}\n"""
                           f"""{'Mean reward:':>{pad}} {statistics.mean(locs['rewbuffer']):.2f}\n"""
-                          f"""{'Mean episode length:':>{pad}} {statistics.mean(locs['lenbuffer']):.2f}\n""")
+                          f"""{'Mean episode length:':>{pad}} {statistics.mean(locs['lenbuffer']):.2f}\n"""
+                          f"""{'Mean symmetry loss:':>{pad}} {statistics.mean(locs['symmetry_loss']):.2f}\n""")
                         #   f"""{'Mean reward/step:':>{pad}} {locs['mean_reward']:.2f}\n"""
                         #   f"""{'Mean episode length/episode:':>{pad}} {locs['mean_trajectory_length']:.2f}\n""")
         else:
